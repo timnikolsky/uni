@@ -1,0 +1,31 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
+      tgkit:
+        specifier: ^0.1.2
+        version: 0.1.2
+
+packages:
+
+  dotenv@16.4.5:
+    resolution: {integrity: sha512-ZmdL2rui+eB2YwhsWzjInR8LldtZHGDoQ1ugH85ppHKwpUHL7j7rN0Ti9NCnGiQbhaZ11FpR+7ao1dNsmduNUg==}
+    engines: {node: '>=12'}
+
+  tgkit@0.1.2:
+    resolution: {integrity: sha512-dHK+Neg1K5ZoXAX5CLA9IrnEvdyDyISOxGZf+oSylylcCWine0bb56YBG9ulSHQMnnO1/ncBuNwUcHccyAOm2Q==}
+
+snapshots:
+
+  dotenv@16.4.5: {}
+
+  tgkit@0.1.2: {}

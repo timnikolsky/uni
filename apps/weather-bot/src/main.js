@@ -36,6 +36,8 @@ const cities = [
 ];
 
 bot.on('message', async (message) => {
+	const hasPremium = await checkPremiumStatus(message.sender.id)
+
 	if (message.text === '/start') {
         message.chat.sendMessage('Привет! Выбери город:', {
             replyMarkup: new InlineKeyboardMarkup({
@@ -49,6 +51,11 @@ bot.on('message', async (message) => {
     }
 
 	if (message.text === '/premium') {
+		if (hasPremium) {
+			message.chat.sendMessage('☺️ У вас уже оформлена подписка на Weather Premium! Чтобы отменить подписку, перейдите в настройки Telegram и в разделе Telegram Stars отмените подписку.')
+			return
+		}
+
 		const invoiceLink = await bot.rest.request('createInvoiceLink', {
 			title: 'WeatherBot Premium',
 			description: 'Подписка на продвинутые данные о погоде',
@@ -58,7 +65,7 @@ bot.on('message', async (message) => {
 			subscription_period: 2592000
 		})
 
-		message.chat.sendMessage('Купить подписку:', {
+		message.chat.sendMessage('☀️ Weather Premium позволит вам:\n\n- Получать более точную информацию о погоде\n- Узнавать погоду по точке геолокации\n- Получать советы исходя из погоды\n\nВсего за 1 ⭐ в месяц!', {
 			replyMarkup: new InlineKeyboardMarkup({
 				inlineKeyboard: [[
 					new InlineKeyboardButton({
@@ -72,32 +79,53 @@ bot.on('message', async (message) => {
 	}
 
 	if (message.location) {
+		if (!hasPremium) {
+			message.chat.sendMessage('🔒 Для получения информации о погоде по геолокации вам необходимо оформить подписку на Weather Premium. Используйте команду /premium для оформления подписки.')
+			return
+		}
+
 		const { longitude, latitude } = message.location
 
 		const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&appid=${process.env.WEATHER_API_KEY}&lang=ru`)
 		const data = await res.json();
 		
-		message.chat.sendMessage( `${data.name}
-${data.weather[0].description}
-${data.main.temp}°C, ощущается как ${data.main.feels_like}°C`
-		);
+		sendWeatherInfo(message.chat, message.sender.id, data)
 	}
 })
 
+async function sendWeatherInfo(chat, userId, data) {
+	const hasPremium = await checkPremiumStatus(userId)
+	let messageContent = `🏙️ ${data.name} — ${data.weather[0].description}\n\n🌡 ${data.main.temp}°C`
+
+	if (hasPremium) {
+		messageContent += `\n☺️ Ощущается как: ${data.main.feels_like}°C`
+
+		if (data.weather[0].main === 'Rain') {
+			messageContent += `\n☂️ Идёт дождь, не забудьте взять зонт`
+		}
+
+		if (data.wind.speed > 7) {
+			messageContent += `\n💨 Сильный ветер, возьмите с собой ветровку`
+		}
+
+		if (data.main.pressure > 1200) {
+			messageContent += `\n🪨 Сегодня высокое давление, лучше не переутомляться`
+		}
+	}
+
+	await chat.sendMessage(messageContent);
+}
+
 bot.on('callbackQuery', async (query) => {
 	const weather = await getWeather(query.data.split('_')[1]);
-	query.message.chat.sendMessage( `${weather.name}
-${weather.weather[0].description}
-${weather.main.temp}°C, ощущается как ${weather.main.feels_like}°C`
-	);
+	sendWeatherInfo(query.message.chat, query.from.id, weather)
 	query.answer()
 })
 
 bot.on('preCheckoutQuery', async (query) => {
 	bot.answerPreCheckoutQuery(query.id, true)
-	await doc.loadInfo()
 	const { transactions } = await bot.getStarTransactions({})
-	await bot.refundStarPayment(query.from.id, transactions.at(-1).id).catch(() => console.log)
+	// await bot.refundStarPayment(query.from.id, transactions.at(-1).id).catch(() => console.log)
 	const sheet = doc.sheetsByTitle['transactions']
 	await sheet.addRow({
 		userId: query.from.id,
@@ -112,4 +140,12 @@ async function getWeather(city) {
 	return data;
 }
 
-bot.polling.start();
+async function checkPremiumStatus(userId) {
+	const rows = await doc.sheetsByTitle['transactions'].getRows()
+	const transactionRow = rows.find((row) => row.get('userId') === userId.toString())
+	return Boolean(transactionRow)
+}
+
+doc.loadInfo().then(() => {
+	bot.polling.start();
+})

@@ -1,5 +1,16 @@
 import { Client, InlineKeyboardMarkup, InlineKeyboardButton } from 'tgkit';
 import 'dotenv/config';
+import { GoogleSpreadsheet } from 'google-spreadsheet';
+import { JWT } from 'google-auth-library';
+import credentials from './credentials.json' with { type: "json" };
+
+const serviceAccountAuth = new JWT({
+	email: credentials.client_email,
+	key: credentials.private_key,
+	scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+});
+
+const doc = new GoogleSpreadsheet('1tD1O4sseC13fyakYnSh-i3aNBTSDTlABx-HXZa2YFhA', serviceAccountAuth);
 
 const bot = new Client({
 	token: process.env.TELEGRAM_BOT_TOKEN
@@ -34,7 +45,31 @@ bot.on('message', async (message) => {
 				})])
 			})
         })
+		return
     }
+
+	if (message.text === '/premium') {
+		const invoiceLink = await bot.rest.request('createInvoiceLink', {
+			title: 'WeatherBot Premium',
+			description: 'Подписка на продвинутые данные о погоде',
+			payload: 'premium',
+			currency: 'XTR',
+			prices: '[{"label": "Подписка на месяц", "amount": 1}]',
+			subscription_period: 2592000
+		})
+
+		message.chat.sendMessage('Купить подписку:', {
+			replyMarkup: new InlineKeyboardMarkup({
+				inlineKeyboard: [[
+					new InlineKeyboardButton({
+						text: 'Купить',
+						url: invoiceLink
+					})
+				]]
+			})
+		})
+		return
+	}
 
 	if (message.location) {
 		const { longitude, latitude } = message.location
@@ -56,6 +91,19 @@ ${weather.weather[0].description}
 ${weather.main.temp}°C, ощущается как ${weather.main.feels_like}°C`
 	);
 	query.answer()
+})
+
+bot.on('preCheckoutQuery', async (query) => {
+	bot.answerPreCheckoutQuery(query.id, true)
+	await doc.loadInfo()
+	const { transactions } = await bot.getStarTransactions({})
+	await bot.refundStarPayment(query.from.id, transactions.at(-1).id).catch(() => console.log)
+	const sheet = doc.sheetsByTitle['transactions']
+	await sheet.addRow({
+		userId: query.from.id,
+		date: new Date().getTime(),
+		transactionId: transactions.at(-1).id
+	})
 })
 
 async function getWeather(city) {

@@ -1,3 +1,4 @@
+import os
 import telebot
 import time
 from telebot import types
@@ -12,7 +13,7 @@ table = service.open_by_key(TABLE_ID)
 print(table)
 
 # Инициализация бота с токеном
-bot = telebot.TeleBot("7613869433:AAHqbIy1_XNSWDuD567mPZmZgA5nUqd_JwE")
+bot = telebot.TeleBot(os.environ['BOT_TOKEN'])
 
 # Словарь для хранения информации о пользователях
 user_data = {}
